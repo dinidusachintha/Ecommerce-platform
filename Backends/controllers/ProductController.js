@@ -4,7 +4,6 @@ const fs = require("fs").promises;
 const path = require("path");
 const mongoose = require("mongoose");
 
-// Multer storage setup
 const storage = multer.diskStorage({
   destination: async (req, file, cb) => {
     const dir = path.join(__dirname, "../Uploads");
@@ -24,7 +23,6 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage }).array("newImages", 10);
 
-// Helper function to delete images
 async function deleteImage(filePath) {
   const fullPath = path.join(__dirname, "../Uploads", filePath);
   try {
@@ -35,16 +33,14 @@ async function deleteImage(filePath) {
   }
 }
 
-// Add product
 const addProduct = async (req, res) => {
   upload(req, res, async (err) => {
-    if (err) {
-      return res.status(500).json({ error: "File upload failed: " + err.message });
-    }
+    if (err) return res.status(500).json({ error: "File upload failed: " + err.message });
+
     try {
       const { productname, description, price, category, stock } = req.body;
       if (!productname || !description || !price || !category || !stock) {
-        return res.status(400).json({ error: "All fields (productname, description, price, category, stock) are required" });
+        return res.status(400).json({ error: "All fields are required" });
       }
 
       const images = req.files ? req.files.map(file => file.filename) : [];
@@ -67,7 +63,6 @@ const addProduct = async (req, res) => {
   });
 };
 
-// Get all products
 const getProducts = async (req, res) => {
   try {
     const products = await Product.find();
@@ -78,7 +73,6 @@ const getProducts = async (req, res) => {
   }
 };
 
-// Get products by category
 const getProductsByCategory = async (req, res) => {
   try {
     const { category } = req.params;
@@ -94,11 +88,9 @@ const getProductsByCategory = async (req, res) => {
   }
 };
 
-// Get single product by ID
 const getProductById = async (req, res) => {
   try {
     const { id } = req.params;
-
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid product ID format" });
     }
@@ -114,36 +106,30 @@ const getProductById = async (req, res) => {
   }
 };
 
-// Update product
 const updateProduct = async (req, res) => {
   upload(req, res, async (err) => {
-    if (err) {
-      return res.status(500).json({ error: "File upload failed: " + err.message });
-    }
+    if (err) return res.status(500).json({ error: "File upload failed: " + err.message });
+
     try {
       const { productname, description, price, category, stock, imagesToDelete } = req.body;
       const existingProduct = await Product.findById(req.params.id);
 
-      if (!existingProduct) {
-        return res.status(404).json({ message: "Product not found" });
-      }
+      if (!existingProduct) return res.status(404).json({ message: "Product not found" });
 
       if (!productname || !description || !price || !category || !stock) {
-        return res.status(400).json({ error: "All fields (productname, description, price, category, stock) are required" });
+        return res.status(400).json({ error: "All fields are required" });
       }
 
-      // Delete selected images
       const deleteIndices = imagesToDelete ? JSON.parse(imagesToDelete) : [];
       if (deleteIndices.length > 0) {
         const imagesToKeep = existingProduct.images.filter((_, index) => !deleteIndices.includes(index));
         const deletePromises = existingProduct.images
           .filter((_, index) => deleteIndices.includes(index))
-          .map((image) => deleteImage(image));
+          .map(image => deleteImage(image));
         await Promise.all(deletePromises);
         existingProduct.images = imagesToKeep;
       }
 
-      // Add new images
       if (req.files && req.files.length > 0) {
         const newImageFilenames = req.files.map(file => file.filename);
         existingProduct.images = [...existingProduct.images, ...newImageFilenames];
@@ -165,17 +151,14 @@ const updateProduct = async (req, res) => {
   });
 };
 
-// Delete product
 const deleteProduct = async (req, res) => {
   try {
     const productToDelete = await Product.findById(req.params.id);
 
-    if (!productToDelete) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+    if (!productToDelete) return res.status(404).json({ message: "Product not found" });
 
     if (productToDelete.images.length > 0) {
-      const deletePromises = productToDelete.images.map((image) => deleteImage(image));
+      const deletePromises = productToDelete.images.map(image => deleteImage(image));
       await Promise.all(deletePromises);
     }
 
@@ -187,7 +170,6 @@ const deleteProduct = async (req, res) => {
   }
 };
 
-// Rate product
 const rateProduct = async (req, res) => {
   try {
     const { id } = req.params;
@@ -198,9 +180,7 @@ const rateProduct = async (req, res) => {
     }
 
     const product = await Product.findById(id);
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+    if (!product) return res.status(404).json({ message: "Product not found" });
 
     const newRating = (product.rating * product.ratingCount + rating) / (product.ratingCount + 1);
     product.rating = newRating;
