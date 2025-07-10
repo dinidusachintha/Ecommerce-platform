@@ -1,4 +1,5 @@
-// Import dependencies
+// server.js
+
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -6,21 +7,18 @@ const path = require('path');
 const dotenv = require('dotenv');
 const productRoutes = require('./routes/productRoutes');
 
-// Load environment variables
 dotenv.config();
 
-// Initialize app
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded images statically
+// Serve uploads folder statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// API routes
+// Routes
 app.use('/api/products', productRoutes);
 
 // MongoDB connection
@@ -33,7 +31,6 @@ app.get('/', (req, res) => {
   res.send('API is running...');
 });
 
-// Start server
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

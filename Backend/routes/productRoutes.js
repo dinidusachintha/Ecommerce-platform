@@ -1,40 +1,57 @@
+// routes/productRoutes.js
+
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const Product = require('../models/productModel');
 const path = require('path');
+const fs = require('fs');
 
-// Multer setup
+// Multer config for image uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // save to /uploads folder
+  destination: function (req, file, cb) {
+    const uploadPath = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath);
+    }
+    cb(null, uploadPath);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + '-' + uniqueSuffix + ext);
+  filename: function (req, file, cb) {
+    cb(null, Date.now() + '-' + file.originalname);
   },
 });
 const upload = multer({ storage });
 
-// ➡️ GET /api/products (with optional category filter)
+// GET all products (optionally filtered by category)
 router.get('/', async (req, res) => {
   try {
     const category = req.query.category;
-    const filter = category && category !== 'general' ? { category } : {};
-    const products = await Product.find(filter);
+    const query = category ? { category } : {};
+    const products = await Product.find(query);
     res.json(products);
   } catch (err) {
-    console.error('Fetch products error:', err);
+    console.error('Error fetching products:', err);
     res.status(500).json({ error: 'Failed to fetch products' });
   }
 });
 
-// ➡️ POST /api/products (add new product with images)
-router.post('/', upload.array('images', 5), async (req, res) => {
+// GET single product by ID
+router.get('/:id', async (req, res) => {
+  try {
+    const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: 'Product not found' });
+    res.json(product);
+  } catch (err) {
+    console.error('Error fetching product:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST add new product with images
+router.post('/', upload.array('images'), async (req, res) => {
   try {
     const { productname, description, price, category, stock } = req.body;
-    const imagePaths = req.files.map(file => '/' + file.path.replace(/\\/g, '/')); // fix for Windows paths
+    const images = req.files.map(file => 'uploads/' + file.filename);
 
     const product = new Product({
       productname,
@@ -42,50 +59,14 @@ router.post('/', upload.array('images', 5), async (req, res) => {
       price,
       category,
       stock,
-      images: imagePaths,
+      images,
     });
 
     await product.save();
     res.status(201).json(product);
   } catch (err) {
-    console.error('Add product error:', err);
+    console.error('Error adding product:', err);
     res.status(500).json({ error: 'Failed to add product' });
-  }
-});
-
-// ➡️ POST /api/products/seed (seed sample data)
-router.post('/seed', async (req, res) => {
-  try {
-    await Product.deleteMany({}); // clear existing
-
-    const sampleProducts = [
-      {
-        productname: 'Women T-Shirt',
-        description: 'Cotton casual t-shirt for women',
-        price: 19.99,
-        category: 'women',
-        stock: 'in-stock',
-        images: ['/uploads/sample-women.jpg'],
-        rating: 4.2,
-        ratingCount: 17,
-      },
-      {
-        productname: 'Men Hoodie',
-        description: 'Warm fleece hoodie for men',
-        price: 39.99,
-        category: 'men',
-        stock: 'limited',
-        images: ['/uploads/sample-men.jpg'],
-        rating: 4.5,
-        ratingCount: 23,
-      },
-    ];
-
-    await Product.insertMany(sampleProducts);
-    res.status(201).json({ message: 'Sample products seeded' });
-  } catch (err) {
-    console.error('Seed error:', err);
-    res.status(500).json({ error: 'Failed to seed sample data' });
   }
 });
 
