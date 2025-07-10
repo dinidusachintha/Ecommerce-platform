@@ -1,144 +1,146 @@
-import React, { useState, useRef } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-// Use Vite env or fallback
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+import axios from 'axios';
+import { Upload, AlertCircle } from 'lucide-react';
 
 const ProductAdd = () => {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-
   const [formData, setFormData] = useState({
-    name: '',
+    productname: '',
     description: '',
     price: '',
-    originalPrice: '',
     category: 'women',
-    stock: ''
+    stock: 'in-stock',
   });
-
+  const [images, setImages] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = () => {
-    const files = fileInputRef.current.files;
-    setSelectedFiles(Array.from(files));
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    
+    if (files.length === 0) return;
+    
+    // Validate file types and sizes
+    const validFiles = files.filter(file => {
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      
+      if (!validTypes.includes(file.type)) {
+        setError('Only JPEG, PNG, and WebP images are allowed');
+        return false;
+      }
+      
+      if (file.size > maxSize) {
+        setError('Image size must be less than 5MB');
+        return false;
+      }
+      
+      return true;
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    setError('');
+    setImages(validFiles);
+    
+    // Create preview URLs
+    const previews = validFiles.map(file => URL.createObjectURL(file));
+    setPreviewImages(previews);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError('');
-    setSuccess('');
-
+    
+    if (images.length === 0) {
+      setError('Please select at least one image');
+      return;
+    }
+    
     try {
+      setIsLoading(true);
+      
       const formDataToSend = new FormData();
-      formDataToSend.append('name', formData.name);
+      formDataToSend.append('productname', formData.productname);
       formDataToSend.append('description', formData.description);
       formDataToSend.append('price', formData.price);
-      formDataToSend.append('originalPrice', formData.originalPrice || formData.price);
       formDataToSend.append('category', formData.category);
       formDataToSend.append('stock', formData.stock);
-
-      const files = fileInputRef.current.files;
-      if (!files || files.length === 0) {
-        throw new Error('Please select at least one image.');
-      }
-
-      for (let i = 0; i < files.length; i++) {
-        formDataToSend.append('images', files[i]);
-      }
-
-      const config = {
+      
+      images.forEach(image => {
+        formDataToSend.append('images', image);
+      });
+      
+      const response = await axios.post('http://localhost:5000/api/products', formDataToSend, {
         headers: {
-          'Content-Type': 'multipart/form-data'
+          'Content-Type': 'multipart/form-data',
         },
-        withCredentials: true
-      };
-
-      await axios.post(`${API_BASE_URL}/api/products`, formDataToSend, config);
-
-      setSuccess('Product added successfully!');
-      setTimeout(() => navigate('/'), 1500);
+      });
+      
+      navigate('/');
     } catch (err) {
       console.error('Error adding product:', err);
-      let errorMessage = 'Failed to add product.';
-      if (err.response) {
-        if (err.response.status === 404) {
-          errorMessage = 'API endpoint not found.';
-        } else if (err.response.data?.message) {
-          errorMessage = err.response.data.message;
-        } else {
-          errorMessage = err.response.statusText;
-        }
-      } else if (err.request) {
-        errorMessage = 'No response from server. Is it running?';
-      } else {
-        errorMessage = err.message;
-      }
-      setError(errorMessage);
+      setError(err.response?.data?.error || 'Failed to add product');
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="container max-w-3xl px-4 py-8 mx-auto">
-      <h1 className="mb-6 text-2xl font-bold">Add New Product</h1>
-
+    <div className="max-w-2xl p-6 mx-auto bg-white rounded-lg shadow-md">
+      <h2 className="mb-6 text-2xl font-bold text-gray-800">Add New Product</h2>
+      
       {error && (
-        <div className="p-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
-          <strong>Error:</strong> {error}
-          {error.includes('API') && (
-            <div className="mt-1 text-sm">
-              Current API URL: <code>{API_BASE_URL}/api/products</code>
-            </div>
-          )}
+        <div className="flex items-center p-4 mb-6 text-red-600 bg-red-100 rounded-lg">
+          <AlertCircle className="mr-2" />
+          {error}
         </div>
       )}
-
-      {success && (
-        <div className="p-3 mb-4 text-green-700 bg-green-100 border border-green-400 rounded">
-          {success}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="p-6 bg-white rounded-lg shadow-md">
-        <div className="mb-4">
-          <label className="block mb-2 font-medium text-gray-700">Product Name *</label>
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            required
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="mb-4">
-          <label className="block mb-2 font-medium text-gray-700">Description *</label>
-          <textarea
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            rows="4"
-            required
-            className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 mb-4 md:grid-cols-2">
+      
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {/* Product Name */}
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Product Name
+            </label>
+            <input
+              type="text"
+              name="productname"
+              value={formData.productname}
+              onChange={handleChange}
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              required
+            />
+          </div>
+          
+          {/* Description */}
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Description
+            </label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              rows="3"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              required
+            />
+          </div>
+          
+          {/* Price */}
           <div>
-            <label className="block mb-2 font-medium text-gray-700">Price *</label>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Price
+            </label>
             <input
               type="number"
               name="price"
@@ -146,102 +148,105 @@ const ProductAdd = () => {
               onChange={handleChange}
               min="0"
               step="0.01"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
               required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
+          
+          {/* Category */}
           <div>
-            <label className="block mb-2 font-medium text-gray-700">Original Price</label>
-            <input
-              type="number"
-              name="originalPrice"
-              value={formData.originalPrice}
-              onChange={handleChange}
-              min="0"
-              step="0.01"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 mb-4 md:grid-cols-2">
-          <div>
-            <label className="block mb-2 font-medium text-gray-700">Category *</label>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Category
+            </label>
             <select
               name="category"
               value={formData.category}
               onChange={handleChange}
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
               <option value="women">Women</option>
               <option value="men">Men</option>
               <option value="kids">Kids</option>
-              <option value="general">General</option>
             </select>
           </div>
+          
+          {/* Stock */}
           <div>
-            <label className="block mb-2 font-medium text-gray-700">Stock *</label>
-            <input
-              type="number"
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Stock Status
+            </label>
+            <select
               name="stock"
               value={formData.stock}
               onChange={handleChange}
-              min="0"
-              required
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-        </div>
-
-        <div className="mb-6">
-          <label className="block mb-2 font-medium text-gray-700">Product Images *</label>
-          <div className="flex flex-col items-start gap-4 sm:flex-row sm:items-center">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current.click()}
-              disabled={isSubmitting}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
-              Select Images
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              multiple
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleFileChange}
-            />
-            <span className="text-sm text-gray-500">
-              {selectedFiles.length} image{selectedFiles.length !== 1 ? 's' : ''} selected
-            </span>
+              <option value="in-stock">In Stock</option>
+              <option value="out-of-stock">Out of Stock</option>
+              <option value="limited">Limited Stock</option>
+            </select>
           </div>
-          {selectedFiles.length > 0 && (
-            <ul className="mt-2 text-sm text-gray-600 list-disc list-inside">
-              {selectedFiles.map((file, index) => (
-                <li key={index}>{file.name}</li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-2 text-xs text-gray-500">Supported: JPG, PNG, WEBP (Max 5MB each)</p>
+          
+          {/* Images */}
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Product Images
+            </label>
+            <div className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 border-dashed rounded-lg">
+              <Upload className="w-8 h-8 mb-2 text-gray-500" />
+              <p className="mb-2 text-sm text-gray-600">
+                Drag & drop images here, or click to select
+              </p>
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg, image/png, image/webp"
+                onChange={handleImageChange}
+                className="hidden"
+                id="image-upload"
+              />
+              <label
+                htmlFor="image-upload"
+                className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-lg cursor-pointer hover:bg-pink-700"
+              >
+                Select Images
+              </label>
+              <p className="mt-2 text-xs text-gray-500">
+                JPEG, PNG, or WebP (Max 5MB each)
+              </p>
+            </div>
+            
+            {/* Image Previews */}
+            {previewImages.length > 0 && (
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {previewImages.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      className="object-cover w-full h-32 rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-
-        <div className="flex justify-end gap-4 pt-4 border-t">
+        
+        <div className="flex justify-end mt-8 space-x-4">
           <button
             type="button"
             onClick={() => navigate('/')}
-            className="px-6 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
-            disabled={isSubmitting}
+            className="px-6 py-3 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-6 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            disabled={isSubmitting}
+            disabled={isLoading}
+            className="px-6 py-3 text-white bg-pink-600 rounded-lg hover:bg-pink-700 disabled:opacity-70 disabled:cursor-not-allowed"
           >
-            {isSubmitting ? 'Adding...' : 'Add Product'}
+            {isLoading ? 'Adding...' : 'Add Product'}
           </button>
         </div>
       </form>
