@@ -1,4 +1,4 @@
-// productUpdate.jsx
+// src/components/ProductUpdate.jsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -8,14 +8,14 @@ const ProductUpdate = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    name: '',
+    productname: '',
     description: '',
     price: '',
-    originalPrice: '',
     category: 'women',
-    images: [''],
-    stock: ''
+    stock: '',
+    images: [],
   });
+  const [newImages, setNewImages] = useState([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -23,8 +23,8 @@ const ProductUpdate = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/products/${id}`);
-        setFormData(response.data.product);
+        const response = await axios.get(`http://localhost:5000/api/products/get/${id}`);
+        setFormData(response.data);
         setLoading(false);
       } catch (err) {
         setError('Failed to load product');
@@ -42,26 +42,28 @@ const ProductUpdate = () => {
     }));
   };
 
-  const handleImageChange = (e, index) => {
-    const newImages = [...formData.images];
-    newImages[index] = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      images: newImages
-    }));
-  };
-
-  const addImageField = () => {
-    setFormData(prev => ({
-      ...prev,
-      images: [...prev.images, '']
-    }));
+  const handleFileChange = (e) => {
+    setNewImages(Array.from(e.target.files));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const form = new FormData();
+    form.append('productname', formData.productname);
+    form.append('description', formData.description);
+    form.append('price', formData.price);
+    form.append('category', formData.category);
+    form.append('stock', formData.stock);
+
+    // Append new images if any
+    newImages.forEach((file) => {
+      form.append('newImages', file);
+    });
+
     try {
-      await axios.put(`http://localhost:5000/api/products/${id}`, formData);
+      await axios.put(`http://localhost:5000/api/products/update/${id}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       setSuccess('Product updated successfully!');
       setError('');
       setTimeout(() => navigate('/products/list'), 2000);
@@ -83,29 +85,29 @@ const ProductUpdate = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="pt-24 pb-12 bg-gray-50 min-h-screen"
+      className="min-h-screen pt-24 pb-12 bg-gray-50"
     >
-      <div className="container mx-auto px-4">
-        <h1 className="text-3xl font-bold mb-8 text-center">Update Product</h1>
-        
+      <div className="container px-4 mx-auto">
+        <h1 className="mb-8 text-3xl font-bold text-center">Update Product</h1>
+
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="px-4 py-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
             {error}
           </div>
         )}
         {success && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
+          <div className="px-4 py-3 mb-4 text-green-700 bg-green-100 border border-green-400 rounded">
             {success}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md">
+        <form onSubmit={handleSubmit} className="max-w-2xl p-8 mx-auto bg-white shadow-md rounded-xl" encType="multipart/form-data">
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Product Name</label>
+            <label className="block mb-2 font-medium text-gray-700">Product Name</label>
             <input
               type="text"
-              name="name"
-              value={formData.name}
+              name="productname"
+              value={formData.productname}
               onChange={handleChange}
               className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
               required
@@ -113,7 +115,7 @@ const ProductUpdate = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Description</label>
+            <label className="block mb-2 font-medium text-gray-700">Description</label>
             <textarea
               name="description"
               value={formData.description}
@@ -125,7 +127,7 @@ const ProductUpdate = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Price</label>
+            <label className="block mb-2 font-medium text-gray-700">Price</label>
             <input
               type="number"
               name="price"
@@ -139,20 +141,7 @@ const ProductUpdate = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Original Price (Optional)</label>
-            <input
-              type="number"
-              name="originalPrice"
-              value={formData.originalPrice}
-              onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-              min="0"
-              step="0.01"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Category</label>
+            <label className="block mb-2 font-medium text-gray-700">Category</label>
             <select
               name="category"
               value={formData.category}
@@ -167,29 +156,32 @@ const ProductUpdate = () => {
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Images</label>
-            {formData.images.map((image, index) => (
-              <input
-                key={index}
-                type="text"
-                value={image}
-                onChange={(e) => handleImageChange(e, index)}
-                className="w-full px-4 py-2 border rounded-lg mb-2 focus:outline-none focus:ring-2 focus:ring-pink-600"
-                placeholder="Enter image URL"
-                required
-              />
-            ))}
-            <button
-              type="button"
-              onClick={addImageField}
-              className="text-pink-600 hover:text-pink-700 font-medium"
-            >
-              + Add another image
-            </button>
+            <label className="block mb-2 font-medium text-gray-700">Existing Images</label>
+            <div className="flex flex-wrap gap-2">
+              {formData.images.map((image, index) => (
+                <img
+                  key={index}
+                  src={`http://localhost:5000/api/products/images/${image}`}
+                  alt={`Product ${index}`}
+                  className="object-cover w-24 h-24 rounded"
+                />
+              ))}
+            </div>
           </div>
 
           <div className="mb-4">
-            <label className="block text-gray-700 font-medium mb-2">Stock</label>
+            <label className="block mb-2 font-medium text-gray-700">Upload New Images</label>
+            <input
+              type="file"
+              name="newImages"
+              multiple
+              onChange={handleFileChange}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
+            />
+          </div>
+
+          <div className="mb-4">
+            <label className="block mb-2 font-medium text-gray-700">Stock</label>
             <input
               type="number"
               name="stock"

@@ -1,4 +1,3 @@
-// productList.jsx
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -7,7 +6,7 @@ import { Trash2, Edit } from 'lucide-react';
 
 const ProductList = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]);
+  const [products, setProducts] = useState([]); // initialize as empty array
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -15,10 +14,16 @@ const ProductList = () => {
     const fetchProducts = async () => {
       try {
         const response = await axios.get('http://localhost:5000/api/products');
-        setProducts(response.data);
+        if (response.data && Array.isArray(response.data.products)) {
+          setProducts(response.data.products);
+        } else {
+          setProducts([]); // fallback if response is not as expected
+        }
         setLoading(false);
       } catch (err) {
+        console.error(err);
         setError('Failed to load products');
+        setProducts([]); // fallback to empty array if request fails
         setLoading(false);
       }
     };
@@ -28,9 +33,10 @@ const ProductList = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
-        await axios.delete(`http://localhost:5000/api/products/${id}`);
+        await axios.delete(`http://localhost:5000/api/products/delete/${id}`);
         setProducts(products.filter(product => product._id !== id));
       } catch (err) {
+        console.error(err);
         setError('Failed to delete product');
       }
     }
@@ -48,10 +54,10 @@ const ProductList = () => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="pt-24 pb-12 bg-gray-50 min-h-screen"
+      className="min-h-screen pt-24 pb-12 bg-gray-50"
     >
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center mb-8">
+      <div className="container px-4 mx-auto">
+        <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Product List</h1>
           <button
             onClick={() => navigate('/products/new')}
@@ -62,12 +68,12 @@ const ProductList = () => {
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          <div className="px-4 py-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
             {error}
           </div>
         )}
 
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
+        <div className="overflow-x-auto bg-white shadow-md rounded-xl">
           <table className="w-full">
             <thead>
               <tr className="bg-gray-100">
@@ -80,46 +86,52 @@ const ProductList = () => {
               </tr>
             </thead>
             <tbody>
-              {products.map(product => (
-                <tr key={product._id} className="border-t hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <img
-                      src={`http://localhost:5000${product.images[0]}`}
-                      alt={product.name}
-                      className="w-16 h-16 object-cover rounded"
-                    />
-                  </td>
-                  <td className="px-6 py-4">{product.name}</td>
-                  <td className="px-6 py-4 capitalize">{product.category}</td>
-                  <td className="px-6 py-4">${product.price.toFixed(2)}</td>
-                  <td className="px-6 py-4">{product.stock}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => navigate(`/products/edit/${product._id}`)}
-                        className="p-2 text-blue-600 hover:text-blue-800"
-                      >
-                        <Edit className="w-5 h-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(product._id)}
-                        className="p-2 text-red-600 hover:text-red-800"
-                      >
-                        <Trash2 className="w-5 h-5" />
-                      </button>
-                    </div>
+              {Array.isArray(products) && products.length > 0 ? (
+                products.map(product => (
+                  <tr key={product._id} className="border-t hover:bg-gray-50">
+                    <td className="px-6 py-4">
+                      {product.images && product.images.length > 0 ? (
+                        <img
+                          src={`http://localhost:5000/api/products/images/${product.images[0]}`}
+                          alt={product.productname}
+                          className="object-cover w-16 h-16 rounded"
+                        />
+                      ) : (
+                        <span className="text-gray-400">No Image</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">{product.productname}</td>
+                    <td className="px-6 py-4 capitalize">{product.category}</td>
+                    <td className="px-6 py-4">${Number(product.price).toFixed(2)}</td>
+                    <td className="px-6 py-4">{product.stock}</td>
+                    <td className="px-6 py-4">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => navigate(`/products/edit/${product._id}`)}
+                          className="p-2 text-blue-600 hover:text-blue-800"
+                        >
+                          <Edit className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(product._id)}
+                          className="p-2 text-red-600 hover:text-red-800"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="py-6 text-center text-gray-600">
+                    No products found
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
-
-        {products.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-600">No products found</p>
-          </div>
-        )}
       </div>
     </motion.div>
   );
