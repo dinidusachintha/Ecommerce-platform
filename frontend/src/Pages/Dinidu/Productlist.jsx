@@ -63,7 +63,7 @@ const ProductList = () => {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Product List</h1>
           <button
-            onClick={() => navigate('/products/new')}
+            onClick={() => navigate('/add-product')}
             className="px-6 py-2 text-white bg-pink-600 rounded-lg hover:bg-pink-700"
           >
             Add New Product
