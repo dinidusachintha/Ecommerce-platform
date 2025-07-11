@@ -6,7 +6,7 @@ import { Trash2, Edit } from 'lucide-react';
 
 const ProductList = () => {
   const navigate = useNavigate();
-  const [products, setProducts] = useState([]); // initialize as empty array
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -16,14 +16,17 @@ const ProductList = () => {
         const response = await axios.get('http://localhost:5000/api/products');
         if (response.data && Array.isArray(response.data.products)) {
           setProducts(response.data.products);
+        } else if (Array.isArray(response.data)) {
+          // fallback if API sends plain array
+          setProducts(response.data);
         } else {
-          setProducts([]); // fallback if response is not as expected
+          setProducts([]);
         }
-        setLoading(false);
       } catch (err) {
         console.error(err);
         setError('Failed to load products');
-        setProducts([]); // fallback to empty array if request fails
+        setProducts([]);
+      } finally {
         setLoading(false);
       }
     };
@@ -34,7 +37,7 @@ const ProductList = () => {
     if (window.confirm('Are you sure you want to delete this product?')) {
       try {
         await axios.delete(`http://localhost:5000/api/products/delete/${id}`);
-        setProducts(products.filter(product => product._id !== id));
+        setProducts(products.filter((p) => p._id !== id));
       } catch (err) {
         console.error(err);
         setError('Failed to delete product');
@@ -87,7 +90,7 @@ const ProductList = () => {
             </thead>
             <tbody>
               {Array.isArray(products) && products.length > 0 ? (
-                products.map(product => (
+                products.map((product) => (
                   <tr key={product._id} className="border-t hover:bg-gray-50">
                     <td className="px-6 py-4">
                       {product.images && product.images.length > 0 ? (
@@ -125,7 +128,7 @@ const ProductList = () => {
               ) : (
                 <tr>
                   <td colSpan="6" className="py-6 text-center text-gray-600">
-                    No products found
+                    No products found.
                   </td>
                 </tr>
               )}
