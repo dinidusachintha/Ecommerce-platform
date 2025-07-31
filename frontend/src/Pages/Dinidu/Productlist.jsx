@@ -1,142 +1,140 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { Trash2, Edit } from 'lucide-react';
 
 const ProductList = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   useEffect(() => {
     const fetchProducts = async () => {
       try {
         const response = await axios.get('http://localhost:5000/api/products');
-        if (response.data && Array.isArray(response.data.products)) {
-          setProducts(response.data.products);
-        } else if (Array.isArray(response.data)) {
-          // fallback if API sends plain array
-          setProducts(response.data);
-        } else {
-          setProducts([]);
-        }
+        setProducts(response.data);
+        setIsLoading(false);
       } catch (err) {
-        console.error(err);
+        console.error('Error fetching products:', err);
         setError('Failed to load products');
-        setProducts([]);
-      } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     };
     fetchProducts();
   }, []);
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
-      try {
-        await axios.delete(`http://localhost:5000/api/products/delete/${id}`);
-        setProducts(products.filter((p) => p._id !== id));
-      } catch (err) {
-        console.error(err);
-        setError('Failed to delete product');
-      }
+    try {
+      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      setProducts(products.filter(product => product._id !== id));
+      setDeleteConfirm(null);
+    } catch (err) {
+      console.error('Error deleting product:', err);
+      setError('Failed to delete product');
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen pt-24">
-        <div className="w-8 h-8 border-4 border-pink-500 rounded-full border-t-transparent animate-spin"></div>
-      </div>
-    );
+  const confirmDelete = (id) => {
+    setDeleteConfirm(id);
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm(null);
+  };
+
+  if (isLoading) {
+    return <div className="p-6 text-center">Loading products...</div>;
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="min-h-screen pt-24 pb-12 bg-gray-50"
-    >
-      <div className="container px-4 mx-auto">
-        <div className="flex items-center justify-between mb-8">
-          <h1 className="text-3xl font-bold">Product List</h1>
-          <button
-            onClick={() => navigate('/add-product')}
-            className="px-6 py-2 text-white bg-pink-600 rounded-lg hover:bg-pink-700"
-          >
-            Add New Product
-          </button>
+    <div className="max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-md">
+      <h2 className="mb-6 text-2xl font-bold text-gray-800">Product List</h2>
+      
+      {error && (
+        <div className="flex items-center p-4 mb-6 text-red-600 bg-red-100 rounded-lg">
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {error}
         </div>
+      )}
 
-        {error && (
-          <div className="px-4 py-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
-            {error}
-          </div>
-        )}
-
-        <div className="overflow-x-auto bg-white shadow-md rounded-xl">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-6 py-4 text-left">Image</th>
-                <th className="px-6 py-4 text-left">Name</th>
-                <th className="px-6 py-4 text-left">Category</th>
-                <th className="px-6 py-4 text-left">Price</th>
-                <th className="px-6 py-4 text-left">Stock</th>
-                <th className="px-6 py-4 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.isArray(products) && products.length > 0 ? (
-                products.map((product) => (
-                  <tr key={product._id} className="border-t hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      {product.images && product.images.length > 0 ? (
-                        <img
-                          src={`http://localhost:5000/api/products/images/${product.images[0]}`}
-                          alt={product.productname}
-                          className="object-cover w-16 h-16 rounded"
-                        />
-                      ) : (
-                        <span className="text-gray-400">No Image</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">{product.productname}</td>
-                    <td className="px-6 py-4 capitalize">{product.category}</td>
-                    <td className="px-6 py-4">${Number(product.price).toFixed(2)}</td>
-                    <td className="px-6 py-4">{product.stock}</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => navigate(`/products/edit/${product._id}`)}
-                          className="p-2 text-blue-600 hover:text-blue-800"
-                        >
-                          <Edit className="w-5 h-5" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(product._id)}
-                          className="p-2 text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" className="py-6 text-center text-gray-600">
-                    No products found.
-                  </td>
-                </tr>
+      {products.length === 0 ? (
+        <p className="text-gray-600">No products found.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {products.map(product => (
+            <div key={product._id} className="p-4 transition-shadow border border-gray-300 rounded-lg hover:shadow-lg">
+              <div className="flex items-center mb-3">
+                {product.images && product.images.length > 0 && (
+                  <img
+                    src={product.images[0]}
+                    alt={product.productname}
+                    className="object-cover w-24 h-24 mr-3 rounded"
+                  />
+                )}
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">{product.productname}</h3>
+                  <p className="text-sm text-gray-600">{product.category}</p>
+                </div>
+              </div>
+              <p className="text-gray-600 line-clamp-2">{product.description}</p>
+              <p className="mt-2 font-medium text-gray-800">${product.price}</p>
+              <p className={`mt-1 text-sm ${product.stock === 'in-stock' ? 'text-green-600' : product.stock === 'out-of-stock' ? 'text-red-600' : 'text-yellow-600'}`}>
+                {product.stock.replace('-', ' ').toUpperCase()}
+              </p>
+              <div className="flex justify-end mt-3 space-x-2">
+                <button
+                  onClick={() => navigate(`/update/${product._id}`)}
+                  className="p-2 text-blue-600 hover:text-blue-800"
+                  title="Edit product"
+                >
+                  <Edit className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => confirmDelete(product._id)}
+                  className="p-2 text-red-600 hover:text-red-800"
+                  title="Delete product"
+                >
+                  <Trash2 className="w-5 h-5" />
+                </button>
+              </div>
+              
+              {deleteConfirm === product._id && (
+                <div className="p-3 mt-3 bg-gray-100 rounded-lg">
+                  <p className="mb-2 text-sm text-gray-700">Are you sure you want to delete {product.productname}?</p>
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      onClick={cancelDelete}
+                      className="px-3 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleDelete(product._id)}
+                      className="px-3 py-1 text-white bg-red-600 rounded hover:bg-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
               )}
-            </tbody>
-          </table>
+            </div>
+          ))}
         </div>
+      )}
+      
+      <div className="mt-6">
+        <button
+          onClick={() => navigate('/add')}
+          className="px-6 py-3 text-white bg-pink-600 rounded-lg hover:bg-pink-700"
+        >
+          Add New Product
+        </button>
       </div>
-    </motion.div>
+    </div>
   );
 };
 

@@ -1,34 +1,43 @@
-// src/components/ProductUpdate.jsx
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import axios from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
+import axios from 'axios';
+import { Upload, AlertCircle } from 'lucide-react';
 
 const ProductUpdate = () => {
-  const { id } = useParams();
   const navigate = useNavigate();
+  const { id } = useParams();
   const [formData, setFormData] = useState({
     productname: '',
     description: '',
     price: '',
     category: 'women',
-    stock: '',
-    images: [],
+    stock: 'in-stock',
   });
-  const [newImages, setNewImages] = useState([]);
+  const [images, setImages] = useState([]);
+  const [previewImages, setPreviewImages] = useState([]);
+  const [existingImages, setExistingImages] = useState([]);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/products/get/${id}`);
-        setFormData(response.data);
-        setLoading(false);
+        const response = await axios.get(`http://localhost:5000/api/products/${id}`);
+        const product = response.data;
+        setFormData({
+          productname: product.productname,
+          description: product.description,
+          price: product.price,
+          category: product.category,
+          stock: product.stock,
+        });
+        setExistingImages(product.images || []);
+        setIsFetching(false);
       } catch (err) {
-        setError('Failed to load product');
-        setLoading(false);
+        console.error('Error fetching product:', err);
+        setError('Failed to load product data');
+        setIsFetching(false);
       }
     };
     fetchProduct();
@@ -36,181 +45,258 @@ const ProductUpdate = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleFileChange = (e) => {
-    setNewImages(Array.from(e.target.files));
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    
+    if (files.length === 0) return;
+    
+    const validFiles = files.filter(file => {
+      const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      
+      if (!validTypes.includes(file.type)) {
+        setError('Only JPEG, PNG, and WebP images are allowed');
+        return false;
+      }
+      
+      if (file.size > maxSize) {
+        setError('Image size must be less than 5MB');
+        return false;
+      }
+      
+      return true;
+    });
+    
+    if (validFiles.length === 0) return;
+    
+    setError('');
+    setImages(validFiles);
+    
+    const previews = validFiles.map(file => URL.createObjectURL(file));
+    setPreviewImages(previews);
+  };
+
+  const handleRemoveExistingImage = (image) => {
+    setExistingImages(existingImages.filter(img => img !== image));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const form = new FormData();
-    form.append('productname', formData.productname);
-    form.append('description', formData.description);
-    form.append('price', formData.price);
-    form.append('category', formData.category);
-    form.append('stock', formData.stock);
-
-    // Append new images if any
-    newImages.forEach((file) => {
-      form.append('newImages', file);
-    });
-
+    setError('');
+    
     try {
-      await axios.put(`http://localhost:5000/api/products/update/${id}`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      setIsLoading(true);
+      
+      const formDataToSend = new FormData();
+      formDataToSend.append('productname', formData.productname);
+      formDataToSend.append('description', formData.description);
+      formDataToSend.append('price', formData.price);
+      formDataToSend.append('category', formData.category);
+      formDataToSend.append('stock', formData.stock);
+      formDataToSend.append('existingImages', JSON.stringify(existingImages));
+      
+      images.forEach(image => {
+        formDataToSend.append('images', image);
       });
-      setSuccess('Product updated successfully!');
-      setError('');
-      setTimeout(() => navigate('/products/list'), 2000);
+      
+      const response = await axios.put(`http://localhost:5000/api/products/${id}`, formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      navigate('/');
     } catch (err) {
+      console.error('Error updating product:', err);
       setError(err.response?.data?.error || 'Failed to update product');
-      setSuccess('');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen pt-24">
-        <div className="w-8 h-8 border-4 border-pink-500 rounded-full border-t-transparent animate-spin"></div>
-      </div>
-    );
+  if (isFetching) {
+    return <div className="p-6 text-center">Loading product data...</div>;
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="min-h-screen pt-24 pb-12 bg-gray-50"
-    >
-      <div className="container px-4 mx-auto">
-        <h1 className="mb-8 text-3xl font-bold text-center">Update Product</h1>
-
-        {error && (
-          <div className="px-4 py-3 mb-4 text-red-700 bg-red-100 border border-red-400 rounded">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="px-4 py-3 mb-4 text-green-700 bg-green-100 border border-green-400 rounded">
-            {success}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="max-w-2xl p-8 mx-auto bg-white shadow-md rounded-xl" encType="multipart/form-data">
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Product Name</label>
+    <div className="max-w-2xl p-6 mx-auto bg-white rounded-lg shadow-md">
+      <h2 className="mb-6 text-2xl font-bold text-gray-800">Update Product</h2>
+      
+      {error && (
+        <div className="flex items-center p-4 mb-6 text-red-600 bg-red-100 rounded-lg">
+          <AlertCircle className="mr-2" />
+          {error}
+        </div>
+      )}
+      
+      <form onSubmit={handleSubmit}>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Product Name
+            </label>
             <input
               type="text"
               name="productname"
               value={formData.productname}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
               required
             />
           </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Description</label>
+          
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Description
+            </label>
             <textarea
               name="description"
               value={formData.description}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-              rows="4"
+              rows="3"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
               required
             />
           </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Price</label>
+          
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Price
+            </label>
             <input
               type="number"
               name="price"
               value={formData.price}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-              required
               min="0"
               step="0.01"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
+              required
             />
           </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Category</label>
+          
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Category
+            </label>
             <select
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-              required
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
-              <option value="women">Women's Collection</option>
-              <option value="men">Men's Collection</option>
-              <option value="kids">Kids Collection</option>
+              <option value="women">Women</option>
+              <option value="men">Men</option>
+              <option value="kids">Kids</option>
             </select>
           </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Existing Images</label>
-            <div className="flex flex-wrap gap-2">
-              {formData.images.map((image, index) => (
-                <img
-                  key={index}
-                  src={`http://localhost:5000/api/products/images/${image}`}
-                  alt={`Product ${index}`}
-                  className="object-cover w-24 h-24 rounded"
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Upload New Images</label>
-            <input
-              type="file"
-              name="newImages"
-              multiple
-              onChange={handleFileChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block mb-2 font-medium text-gray-700">Stock</label>
-            <input
-              type="number"
+          
+          <div>
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Stock Status
+            </label>
+            <select
               name="stock"
               value={formData.stock}
               onChange={handleChange}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-pink-600"
-              required
-              min="0"
-            />
-          </div>
-
-          <div className="flex justify-end gap-4">
-            <button
-              type="button"
-              onClick={() => navigate('/products/list')}
-              className="px-6 py-2 text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300"
+              className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent"
             >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-6 py-2 text-white bg-pink-600 rounded-lg hover:bg-pink-700"
-            >
-              Update Product
-            </button>
+              <option value="in-stock">In Stock</option>
+              <option value="out-of-stock">Out of Stock</option>
+              <option value="limited">Limited Stock</option>
+            </select>
           </div>
-        </form>
-      </div>
-    </motion.div>
+          
+          <div className="md:col-span-2">
+            <label className="block mb-2 text-sm font-medium text-gray-700">
+              Product Images
+            </label>
+            
+            {existingImages.length > 0 && (
+              <div className="mb-4">
+                <p className="mb-2 text-sm font-medium text-gray-700">Existing Images</p>
+                <div className="grid grid-cols-3 gap-4">
+                  {existingImages.map((image, index) => (
+                    <div key={index} className="relative">
+                      <img
+                        src={image}
+                        alt={`Existing ${index + 1}`}
+                        className="object-cover w-full h-32 rounded-lg"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveExistingImage(image)}
+                        className="absolute p-1 text-white bg-red-600 rounded-full top-1 right-1 hover:bg-red-700"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            <div className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 border-dashed rounded-lg">
+              <Upload className="w-8 h-8 mb-2 text-gray-500" />
+              <p className="mb-2 text-sm text-gray-600">
+                Drag & drop new images here, or click to select
+              </p>
+              <input
+                type="file"
+                multiple
+                accept="image/jpeg, image/png, image/webp"
+                onChange={handleImageChange}
+                className="hidden"
+                id="image-upload"
+              />
+              <label
+                htmlFor="image-upload"
+                className="px-4 py-2 text-sm font-medium text-white bg-pink-600 rounded-lg cursor-pointer hover:bg-pink-700"
+              >
+                Select Images
+              </label>
+              <p className="mt-2 text-xs text-gray-500">
+                JPEG, PNG, or WebP (Max 5MB each)
+              </p>
+            </div>
+            
+            {previewImages.length > 0 && (
+              <div className="grid grid-cols-3 gap-4 mt-4">
+                {previewImages.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Preview ${index + 1}`}
+                      className="object-cover w-full h-32 rounded-lg"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        <div className="flex justify-end mt-8 space-x-4">
+          <button
+            type="button"
+            onClick={() => navigate('/')}
+            className="px-6 py-3 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="px-6 py-3 text-white bg-pink-600 rounded-lg hover:bg-pink-700 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {isLoading ? 'Updating...' : 'Update Product'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 

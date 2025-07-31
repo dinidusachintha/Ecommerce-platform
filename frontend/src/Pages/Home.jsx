@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShoppingCart, Heart, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, Star, Eye, Plus } from 'lucide-react';
+import { ShoppingCart, Heart, RefreshCw, AlertCircle, ChevronLeft, ChevronRight, Star, Eye, Plus, X, ZoomIn } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000';
 const PLACEHOLDER_IMAGE = 'https://via.placeholder.com/400x400/f3f4f6/9ca3af?text=No+Image';
 
-const ProductImage = ({ src, alt, className }) => {
+const ProductImage = ({ src, alt, className, onClick }) => {
   const [imgSrc, setImgSrc] = useState(PLACEHOLDER_IMAGE);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
@@ -22,7 +22,6 @@ const ProductImage = ({ src, alt, className }) => {
       return;
     }
 
-    // Create a new image to test if it loads
     const img = new Image();
     
     img.onload = () => {
@@ -42,27 +41,145 @@ const ProductImage = ({ src, alt, className }) => {
   }, [src]);
 
   return (
-    <div className={`relative ${className}`}>
+    <div className={`relative ${className}`} onClick={onClick}>
       {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
           <div className="w-8 h-8 border-4 border-pink-500 rounded-full animate-spin border-t-transparent"></div>
         </div>
       )}
       <img
         src={imgSrc}
         alt={alt}
-        className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+        className={`${className} ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300 object-cover rounded-lg`}
         style={{ display: isLoading ? 'none' : 'block' }}
       />
       {hasError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
           <div className="text-center text-gray-500">
             <AlertCircle className="w-8 h-8 mx-auto mb-2" />
             <p className="text-sm">Image not found</p>
           </div>
         </div>
       )}
+      {!isLoading && !hasError && (
+        <div className="absolute inset-0 flex items-center justify-center transition-opacity duration-300 bg-black rounded-lg opacity-0 hover:opacity-100 bg-opacity-20">
+          <ZoomIn className="w-10 h-10 p-2 text-white bg-black rounded-full bg-opacity-60" />
+        </div>
+      )}
     </div>
+  );
+};
+
+const ImageGalleryModal = ({ images, currentIndex, onClose, productName }) => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(currentIndex);
+  const [direction, setDirection] = useState(0);
+  
+  const nextImage = () => {
+    setDirection(1);
+    setCurrentImageIndex((prev) => (prev + 1) % images.length);
+  };
+  
+  const prevImage = () => {
+    setDirection(-1);
+    setCurrentImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+  
+  const goToImage = (index) => {
+    setDirection(index > currentImageIndex ? 1 : -1);
+    setCurrentImageIndex(index);
+  };
+  
+  const variants = {
+    enter: (direction) => ({
+      x: direction > 0 ? 1000 : -1000,
+      opacity: 0
+    }),
+    center: {
+      x: 0,
+      opacity: 1
+    },
+    exit: (direction) => ({
+      x: direction < 0 ? 1000 : -1000,
+      opacity: 0
+    })
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="relative w-full max-w-6xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+        {/* Close button */}
+        <button 
+          onClick={onClose}
+          className="absolute z-50 p-2 text-white bg-black bg-opacity-50 rounded-full top-4 right-4 hover:bg-opacity-80"
+        >
+          <X className="w-6 h-6" />
+        </button>
+        
+        {/* Main image */}
+        <div className="relative h-[70vh] overflow-hidden rounded-lg">
+          <AnimatePresence custom={direction} initial={false}>
+            <motion.img
+              key={currentImageIndex}
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{ duration: 0.4 }}
+              src={images[currentImageIndex]}
+              alt={`${productName} - ${currentImageIndex + 1}`}
+              className="absolute inset-0 object-contain w-full h-full"
+            />
+          </AnimatePresence>
+          
+          {/* Navigation arrows */}
+          <button 
+            onClick={prevImage}
+            className="absolute p-3 text-white -translate-y-1/2 bg-black bg-opacity-50 rounded-full left-4 top-1/2 hover:bg-opacity-80"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button 
+            onClick={nextImage}
+            className="absolute p-3 text-white -translate-y-1/2 bg-black bg-opacity-50 rounded-full right-4 top-1/2 hover:bg-opacity-80"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </div>
+        
+        {/* Thumbnail navigation */}
+        <div className="flex justify-center gap-2 mt-4">
+          {images.map((img, index) => (
+            <button
+              key={index}
+              onClick={() => goToImage(index)}
+              className={`w-16 h-16 overflow-hidden transition-all duration-200 rounded-lg border-2 ${
+                index === currentImageIndex 
+                  ? 'border-pink-500 scale-110' 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+            >
+              <img 
+                src={img} 
+                alt={`Thumbnail ${index + 1}`}
+                className="object-cover w-full h-full"
+              />
+            </button>
+          ))}
+        </div>
+        
+        {/* Image counter */}
+        <div className="mt-2 text-center text-white">
+          {currentImageIndex + 1} / {images.length}
+        </div>
+      </div>
+    </motion.div>
   );
 };
 
@@ -73,6 +190,8 @@ const Home = () => {
   const [error, setError] = useState(null);
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const [hoveredProduct, setHoveredProduct] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const navigate = useNavigate();
 
   const categories = [
@@ -103,19 +222,12 @@ const Home = () => {
     }
   ];
 
-  // Helper function to construct image URL
   const getImageUrl = (imagePath) => {
     if (!imagePath) return null;
-    
-    // If it's already a full URL, return as is
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    
-    // Remove leading slash if present to avoid double slashes
     const cleanPath = imagePath.startsWith('/') ? imagePath.slice(1) : imagePath;
-    
-    // Construct the full URL
     return `${API_BASE_URL}/${cleanPath}`;
   };
 
@@ -125,8 +237,6 @@ const Home = () => {
       const response = await axios.get(`${API_BASE_URL}/api/products`, {
         params: { category: activeCategory },
       });
-      
-      console.log('Fetched products:', response.data); // Debug log
       setProducts(response.data);
       setError(null);
     } catch (err) {
@@ -155,13 +265,11 @@ const Home = () => {
   const handleAddToCart = (product, e) => {
     e.stopPropagation();
     console.log('Added to cart:', product.productname);
-    // Add your cart logic here
   };
 
   const handleAddToWishlist = (product, e) => {
     e.stopPropagation();
     console.log('Added to wishlist:', product.productname);
-    // Add your wishlist logic here
   };
 
   const seedSampleData = async () => {
@@ -183,6 +291,16 @@ const Home = () => {
 
   const prevBanner = () => {
     setCurrentBannerIndex((prev) => (prev - 1 + bannerImages.length) % bannerImages.length);
+  };
+
+  const openImageGallery = (product, imageIndex = 0) => {
+    setSelectedProduct(product);
+    setSelectedImageIndex(imageIndex);
+  };
+
+  const closeImageGallery = () => {
+    setSelectedProduct(null);
+    setSelectedImageIndex(0);
   };
 
   if (loading) {
@@ -351,12 +469,9 @@ const Home = () => {
             <AnimatePresence>
               {products.length > 0 ? (
                 products.map((product) => {
-                  // Get the product image URL
-                  const productImageUrl = product.images && product.images.length > 0 
-                    ? getImageUrl(product.images[0])
-                    : null;
-                  
-                  console.log('Product image URL:', productImageUrl, 'Original:', product.images?.[0]); // Debug log
+                  const productImages = product.images?.length > 0 
+                    ? product.images.map(img => getImageUrl(img))
+                    : [PLACEHOLDER_IMAGE];
                   
                   return (
                     <motion.div
@@ -374,10 +489,43 @@ const Home = () => {
                       {/* Product Image Container */}
                       <div className="relative overflow-hidden h-80 rounded-t-3xl">
                         <ProductImage
-                          src={productImageUrl}
+                          src={productImages[0]}
                           alt={product.productname}
-                          className="object-cover w-full h-full transition-transform duration-500 group-hover:scale-110"
+                          className="w-full h-full"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openImageGallery(product, 0);
+                          }}
                         />
+                        
+                        {/* Image gallery thumbnails */}
+                        {productImages.length > 1 && (
+                          <div className="absolute bottom-0 left-0 right-0 flex justify-center gap-2 p-2">
+                            {productImages.slice(0, 4).map((img, idx) => (
+                              <motion.div
+                                key={idx}
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openImageGallery(product, idx);
+                                }}
+                                className="w-10 h-10 overflow-hidden border-2 border-white rounded-lg shadow-md cursor-pointer"
+                              >
+                                <img 
+                                  src={img} 
+                                  alt={`Thumbnail ${idx + 1}`}
+                                  className="object-cover w-full h-full"
+                                />
+                              </motion.div>
+                            ))}
+                            {productImages.length > 4 && (
+                              <div className="flex items-center justify-center w-10 h-10 text-xs font-bold text-white bg-black rounded-lg bg-opacity-70">
+                                +{productImages.length - 4}
+                              </div>
+                            )}
+                          </div>
+                        )}
                         
                         {/* Gradient overlay */}
                         <div className="absolute inset-0 transition-opacity duration-300 opacity-0 bg-gradient-to-t from-black/20 via-transparent to-transparent group-hover:opacity-100" />
@@ -403,7 +551,10 @@ const Home = () => {
                           <motion.button
                             whileHover={{ scale: 1.1 }}
                             whileTap={{ scale: 0.9 }}
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openImageGallery(product, 0);
+                            }}
                             className="p-3 transition-all duration-200 rounded-full shadow-lg bg-white/90 backdrop-blur-sm hover:bg-white"
                           >
                             <Eye className="w-5 h-5 text-gray-600" />
@@ -514,6 +665,18 @@ const Home = () => {
           </motion.div>
         </div>
       </div>
+
+      {/* Image Gallery Modal */}
+      {selectedProduct && (
+        <ImageGalleryModal
+          images={selectedProduct.images?.length > 0 
+            ? selectedProduct.images.map(img => getImageUrl(img))
+            : [PLACEHOLDER_IMAGE]}
+          currentIndex={selectedImageIndex}
+          onClose={closeImageGallery}
+          productName={selectedProduct.productname}
+        />
+      )}
     </div>
   );
 };
