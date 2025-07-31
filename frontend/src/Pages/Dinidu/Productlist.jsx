@@ -9,6 +9,7 @@ const ProductList = () => {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -26,13 +27,20 @@ const ProductList = () => {
   }, []);
 
   const handleDelete = async (id) => {
+    setIsDeleting(true);
     try {
       await axios.delete(`http://localhost:5000/api/products/${id}`);
       setProducts(products.filter(product => product._id !== id));
       setDeleteConfirm(null);
     } catch (err) {
       console.error('Error deleting product:', err);
-      setError('Failed to delete product');
+      if (err.response?.status === 404) {
+        setError('Product not found. It may have been already deleted.');
+      } else {
+        setError(err.response?.data?.error || 'Failed to delete product');
+      }
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -97,6 +105,7 @@ const ProductList = () => {
                   onClick={() => confirmDelete(product._id)}
                   className="p-2 text-red-600 hover:text-red-800"
                   title="Delete product"
+                  disabled={isDeleting}
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
@@ -109,14 +118,16 @@ const ProductList = () => {
                     <button
                       onClick={cancelDelete}
                       className="px-3 py-1 text-gray-700 bg-gray-200 rounded hover:bg-gray-300"
+                      disabled={isDeleting}
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => handleDelete(product._id)}
-                      className="px-3 py-1 text-white bg-red-600 rounded hover:bg-red-700"
+                      className="px-3 py-1 text-white bg-red-600 rounded hover:bg-red-700 disabled:opacity-70 disabled:cursor-not-allowed"
+                      disabled={isDeleting}
                     >
-                      Delete
+                      {isDeleting ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </div>
