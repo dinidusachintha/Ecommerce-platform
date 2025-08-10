@@ -16,6 +16,7 @@ const ProductUpdate = () => {
   const [images, setImages] = useState([]);
   const [previewImages, setPreviewImages] = useState([]);
   const [existingImages, setExistingImages] = useState([]);
+  const [imagesToDelete, setImagesToDelete] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
@@ -23,7 +24,7 @@ const ProductUpdate = () => {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const response = await axios.get(`http://localhost:5000/api/products/${id}`);
+        const response = await axios.get(`http://localhost:5000/api/products/get/${id}`);
         const product = response.data;
         setFormData({
           productname: product.productname,
@@ -50,68 +51,69 @@ const ProductUpdate = () => {
 
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
-    
+
     if (files.length === 0) return;
-    
+
     const validFiles = files.filter(file => {
       const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
       const maxSize = 5 * 1024 * 1024; // 5MB
-      
+
       if (!validTypes.includes(file.type)) {
         setError('Only JPEG, PNG, and WebP images are allowed');
         return false;
       }
-      
+
       if (file.size > maxSize) {
         setError('Image size must be less than 5MB');
         return false;
       }
-      
+
       return true;
     });
-    
+
     if (validFiles.length === 0) return;
-    
+
     setError('');
     setImages(validFiles);
-    
+
     const previews = validFiles.map(file => URL.createObjectURL(file));
     setPreviewImages(previews);
   };
 
-  const handleRemoveExistingImage = (image) => {
-    setExistingImages(existingImages.filter(img => img !== image));
+  const handleRemoveExistingImage = (index) => {
+    setImagesToDelete([...imagesToDelete, index]);
+    setExistingImages(existingImages.filter((_, i) => i !== index));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
     try {
       setIsLoading(true);
-      
+
       const formDataToSend = new FormData();
       formDataToSend.append('productname', formData.productname);
       formDataToSend.append('description', formData.description);
       formDataToSend.append('price', formData.price);
       formDataToSend.append('category', formData.category);
       formDataToSend.append('stock', formData.stock);
-      formDataToSend.append('existingImages', JSON.stringify(existingImages));
-      
+      formDataToSend.append('imagesToDelete', JSON.stringify(imagesToDelete));
+
       images.forEach(image => {
         formDataToSend.append('images', image);
       });
-      
-      const response = await axios.put(`http://localhost:5000/api/products/${id}`, formDataToSend, {
+
+      const response = await axios.put(`http://localhost:5000/api/products/update/${id}`, formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
+
       navigate('/');
     } catch (err) {
       console.error('Error updating product:', err);
-      setError(err.response?.data?.error || 'Failed to update product');
+      setError(err.response?.data?.error || 'Failed to update product. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -124,14 +126,14 @@ const ProductUpdate = () => {
   return (
     <div className="max-w-2xl p-6 mx-auto bg-white rounded-lg shadow-md">
       <h2 className="mb-6 text-2xl font-bold text-gray-800">Update Product</h2>
-      
+
       {error && (
         <div className="flex items-center p-4 mb-6 text-red-600 bg-red-100 rounded-lg">
           <AlertCircle className="mr-2" />
           {error}
         </div>
       )}
-      
+
       <form onSubmit={handleSubmit}>
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="md:col-span-2">
@@ -147,7 +149,7 @@ const ProductUpdate = () => {
               required
             />
           </div>
-          
+
           <div className="md:col-span-2">
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Description
@@ -161,7 +163,7 @@ const ProductUpdate = () => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Price
@@ -177,7 +179,7 @@ const ProductUpdate = () => {
               required
             />
           </div>
-          
+
           <div>
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Category
@@ -193,7 +195,7 @@ const ProductUpdate = () => {
               <option value="kids">Kids</option>
             </select>
           </div>
-          
+
           <div>
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Stock Status
@@ -209,12 +211,12 @@ const ProductUpdate = () => {
               <option value="limited">Limited Stock</option>
             </select>
           </div>
-          
+
           <div className="md:col-span-2">
             <label className="block mb-2 text-sm font-medium text-gray-700">
               Product Images
             </label>
-            
+
             {existingImages.length > 0 && (
               <div className="mb-4">
                 <p className="mb-2 text-sm font-medium text-gray-700">Existing Images</p>
@@ -222,13 +224,14 @@ const ProductUpdate = () => {
                   {existingImages.map((image, index) => (
                     <div key={index} className="relative">
                       <img
-                        src={image}
+                        src={`http://localhost:5000/Images/${image}`}
                         alt={`Existing ${index + 1}`}
                         className="object-cover w-full h-32 rounded-lg"
+                        onError={(e) => { e.target.src = '/placeholder-image.jpg'; }}
                       />
                       <button
                         type="button"
-                        onClick={() => handleRemoveExistingImage(image)}
+                        onClick={() => handleRemoveExistingImage(index)}
                         className="absolute p-1 text-white bg-red-600 rounded-full top-1 right-1 hover:bg-red-700"
                       >
                         ×
@@ -238,7 +241,7 @@ const ProductUpdate = () => {
                 </div>
               </div>
             )}
-            
+
             <div className="flex flex-col items-center justify-center p-6 border-2 border-gray-300 border-dashed rounded-lg">
               <Upload className="w-8 h-8 mb-2 text-gray-500" />
               <p className="mb-2 text-sm text-gray-600">
@@ -247,7 +250,7 @@ const ProductUpdate = () => {
               <input
                 type="file"
                 multiple
-                accept="image/jpeg, image/png, image/webp"
+                accept="image/jpeg,image/png,image/webp"
                 onChange={handleImageChange}
                 className="hidden"
                 id="image-upload"
@@ -262,7 +265,7 @@ const ProductUpdate = () => {
                 JPEG, PNG, or WebP (Max 5MB each)
               </p>
             </div>
-            
+
             {previewImages.length > 0 && (
               <div className="grid grid-cols-3 gap-4 mt-4">
                 {previewImages.map((preview, index) => (
@@ -278,7 +281,7 @@ const ProductUpdate = () => {
             )}
           </div>
         </div>
-        
+
         <div className="flex justify-end mt-8 space-x-4">
           <button
             type="button"

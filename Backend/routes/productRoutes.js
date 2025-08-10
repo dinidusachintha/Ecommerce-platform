@@ -1,73 +1,45 @@
-// routes/productRoutes.js
-
-const express = require('express');
-const router = express.Router();
+const router = require('express').Router();
+const ProductController = require('../controllers/ProductController');
 const multer = require('multer');
-const Product = require('../models/productModel');
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises;
 
-// Multer config for image uploads
+const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, '../Images');
+
 const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath);
+  destination: async (req, file, cb) => {
+    try {
+      await fs.access(UPLOAD_DIR);
+      cb(null, UPLOAD_DIR);
+    } catch (err) {
+      await fs.mkdir(UPLOAD_DIR, { recursive: true });
+      cb(null, UPLOAD_DIR);
     }
-    cb(null, uploadPath);
   },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + '-' + file.originalname);
+  filename: (req, file, cb) => {
+    cb(null, `${file.fieldname}_${Date.now()}_${file.originalname}`);
   },
 });
-const upload = multer({ storage });
 
-// GET all products (optionally filtered by category)
-router.get('/', async (req, res) => {
-  try {
-    const category = req.query.category;
-    const query = category ? { category } : {};
-    const products = await Product.find(query);
-    res.json(products);
-  } catch (err) {
-    console.error('Error fetching products:', err);
-    res.status(500).json({ error: 'Failed to fetch products' });
-  }
-});
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only JPEG, PNG, and WebP images are allowed'));
+  },
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+}).array('images', 10);
 
-// GET single product by ID
-router.get('/:id', async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ error: 'Product not found' });
-    res.json(product);
-  } catch (err) {
-    console.error('Error fetching product:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-// POST add new product with images
-router.post('/', upload.array('images'), async (req, res) => {
-  try {
-    const { productname, description, price, category, stock } = req.body;
-    const images = req.files.map(file => 'uploads/' + file.filename);
-
-    const product = new Product({
-      productname,
-      description,
-      price,
-      category,
-      stock,
-      images,
-    });
-
-    await product.save();
-    res.status(201).json(product);
-  } catch (err) {
-    console.error('Error adding product:', err);
-    res.status(500).json({ error: 'Failed to add product' });
-  }
-});
+router.post('/add', upload, ProductController.addProduct);
+router.get('/', ProductController.getProducts);
+router.get('/get/:id', ProductController.getProductById);
+router.put('/update/:id', upload, ProductController.updateProduct);
+router.delete('/delete/:id', ProductController.deleteProduct);
+router.post('/rate/:id', ProductController.rateProduct);
 
 module.exports = router;

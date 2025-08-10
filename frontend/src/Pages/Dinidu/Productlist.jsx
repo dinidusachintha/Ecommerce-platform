@@ -15,11 +15,11 @@ const ProductList = () => {
     const fetchProducts = async () => {
       try {
         const response = await axios.get('http://localhost:5000/api/products');
-        setProducts(response.data);
+        setProducts(response.data.products || response.data); // Handle paginated or non-paginated response
         setIsLoading(false);
       } catch (err) {
         console.error('Error fetching products:', err);
-        setError('Failed to load products');
+        setError('Failed to load products. Please try again later.');
         setIsLoading(false);
       }
     };
@@ -29,7 +29,7 @@ const ProductList = () => {
   const handleDelete = async (id) => {
     setIsDeleting(true);
     try {
-      await axios.delete(`http://localhost:5000/api/products/${id}`);
+      await axios.delete(`http://localhost:5000/api/products/delete/${id}`);
       setProducts(products.filter(product => product._id !== id));
       setDeleteConfirm(null);
     } catch (err) {
@@ -37,7 +37,7 @@ const ProductList = () => {
       if (err.response?.status === 404) {
         setError('Product not found. It may have been already deleted.');
       } else {
-        setError(err.response?.data?.error || 'Failed to delete product');
+        setError(err.response?.data?.error || 'Failed to delete product. Please try again.');
       }
     } finally {
       setIsDeleting(false);
@@ -59,7 +59,7 @@ const ProductList = () => {
   return (
     <div className="max-w-4xl p-6 mx-auto bg-white rounded-lg shadow-md">
       <h2 className="mb-6 text-2xl font-bold text-gray-800">Product List</h2>
-      
+
       {error && (
         <div className="flex items-center p-4 mb-6 text-red-600 bg-red-100 rounded-lg">
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,9 +78,10 @@ const ProductList = () => {
               <div className="flex items-center mb-3">
                 {product.images && product.images.length > 0 && (
                   <img
-                    src={product.images[0]}
+                    src={`http://localhost:5000/Images/${product.images[0]}`}
                     alt={product.productname}
                     className="object-cover w-24 h-24 mr-3 rounded"
+                    onError={(e) => { e.target.src = '/placeholder-image.jpg'; }} // Fallback image
                   />
                 )}
                 <div>
@@ -110,7 +111,7 @@ const ProductList = () => {
                   <Trash2 className="w-5 h-5" />
                 </button>
               </div>
-              
+
               {deleteConfirm === product._id && (
                 <div className="p-3 mt-3 bg-gray-100 rounded-lg">
                   <p className="mb-2 text-sm text-gray-700">Are you sure you want to delete {product.productname}?</p>
@@ -136,7 +137,7 @@ const ProductList = () => {
           ))}
         </div>
       )}
-      
+
       <div className="mt-6">
         <button
           onClick={() => navigate('/add')}
